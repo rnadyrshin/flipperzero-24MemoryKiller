@@ -1,4 +1,5 @@
 #include "i2csender.h"
+#include <i2ctools_i.h>
 
 void i2c_send(i2cSender* i2c_sender) {
     furi_hal_i2c_acquire(I2C_BUS);
