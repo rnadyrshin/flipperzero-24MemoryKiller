@@ -4,6 +4,6 @@
 #include <furi_hal.h>
 #include <gui/gui.h>
 #include <24memkiller_icons.h>
-#include "../i2cread.h"
+#include "../i2cwrite.h"
 
-void draw_read_view(Canvas* canvas, i2cRead* i2c_read);
+void draw_write_view(Canvas* canvas, i2cWrite* i2c_write);

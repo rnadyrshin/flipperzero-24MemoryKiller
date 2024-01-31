@@ -54,19 +54,19 @@ void i2ctools_draw_callback(Canvas* canvas, void* ctx) {
         draw_main_view(canvas, i2ctools->main_view);
         break;
     case SCAN_VIEW:
-        draw_scanner_view(canvas, i2ctools->scanner);
-        break;
-    case KILL_VIEW:
-        draw_sniffer_view(canvas, i2ctools->sniffer);
-        break;
-    case WRITE_VIEW:
-        draw_sender_view(canvas, i2ctools->sender);
+        draw_scanner_view(canvas);
         break;
     case READ_VIEW:
         draw_read_view(canvas, i2ctools->read);
         break;
+    case WRITE_VIEW:
+        draw_write_view(canvas, i2ctools->write);
+        break;
+    case KILL_VIEW:
+        //draw_kill_view(canvas, i2ctools->sniffer);
+        break;
     case SETTINGS_VIEW:
-        draw_infos_view(canvas);
+        draw_settings_view(canvas);
         break;
     default:
         break;
@@ -91,8 +91,12 @@ int32_t i2ctools_app(void* p) {
     i2ctools->mutex = furi_mutex_alloc(FuriMutexTypeNormal);
     i2ctools->notification = furi_record_open(RECORD_NOTIFICATION);
 
+    i2ctools->chip = chip_24c64;
     i2ctools->page_size = 32;
     i2ctools->test_page = 1;
+    i2ctools->address_num = 0;
+    i2ctools->address_idx = 0;
+    i2ctools->scanned = false;
 
     // Alloc viewport
     i2ctools->view_port = view_port_alloc();
@@ -106,18 +110,11 @@ int32_t i2ctools_app(void* p) {
     InputEvent event;
 
     i2ctools->main_view = i2c_main_view_alloc();
-
-    i2ctools->sniffer = i2c_sniffer_alloc();
-    i2ctools->sniffer->menu_index = 0;
-
-    i2ctools->scanner = i2c_scanner_alloc();
-
     i2ctools->read = i2c_read_alloc();
-    i2ctools->read->scanner = i2ctools->scanner;
-    i2ctools->read->addr = i2ctools->test_page * i2ctools->page_size;
+    i2ctools->write = i2c_write_alloc();
 
-    i2ctools->sender = i2c_sender_alloc();
-    i2ctools->sender->scanner = i2ctools->scanner;
+    //i2ctools->sender = i2c_sender_alloc();
+    //i2ctools->sender->scanner = i2ctools->scanner;
 
     while(furi_message_queue_get(event_queue, &event, FuriWaitForever) == FuriStatusOk) {
         // Back
@@ -138,8 +135,13 @@ int32_t i2ctools_app(void* p) {
                     i2ctools->main_view->menu_index--;
                 break;
             case READ_VIEW:
-                if(i2ctools->read->address_idx + 1 < i2ctools->read->address_num)
-                    i2ctools->read->address_idx++;
+//                if(i2ctools->address_idx + 1 < i2ctools->address_num)
+//                    i2ctools->address_idx++;
+                break;
+            case SETTINGS_VIEW:
+                i2ctools->chip = next_chip(i2ctools->chip);
+                if(i2ctools->test_page >= chip_to_page_num_per_slave(i2ctools->chip))
+                    i2ctools->test_page = chip_to_page_num_per_slave(i2ctools->chip) - 1;
                 break;
             default:
                 break;
@@ -197,8 +199,13 @@ int32_t i2ctools_app(void* p) {
                     i2ctools->main_view->menu_index++;
                 break;
             case READ_VIEW:
-                if(i2ctools->read->address_idx)
-                    i2ctools->read->address_idx--;
+//                if(i2ctools->address_idx)
+//                    i2ctools->address_idx--;
+                break;
+            case SETTINGS_VIEW:
+                i2ctools->chip = prev_chip(i2ctools->chip);
+                if(i2ctools->test_page >= chip_to_page_num_per_slave(i2ctools->chip))
+                    i2ctools->test_page = chip_to_page_num_per_slave(i2ctools->chip) - 1;
                 break;
             default:
                 break;
@@ -250,8 +257,13 @@ int32_t i2ctools_app(void* p) {
                 i2ctools->main_view->current_view = i2ctools->main_view->menu_index;
                 break;
             case READ_VIEW:
-                i2ctools->read->len = i2ctools->page_size;
                 i2c_read(i2ctools->read);
+                break;
+            case WRITE_VIEW:
+                //for(uint16_t try_cnt = 0; try_cnt < 10000; try_cnt++) {
+                    i2c_write(i2ctools->write);
+                    i2ctools->pattern++;
+                //}
                 break;
             default:
                 break;
@@ -275,9 +287,13 @@ int32_t i2ctools_app(void* p) {
         } else if(event.key == InputKeyRight && event.type == InputTypeRelease) {
             switch(i2ctools->main_view->current_view)
             {
-            case READ_VIEW:
-                i2ctools->read->addr += i2ctools->page_size;
-                i2ctools->read->readed = false;
+            case WRITE_VIEW:
+                i2ctools->pattern++;
+                break;
+            case SETTINGS_VIEW:
+                i2ctools->test_page++;
+                if(i2ctools->test_page >= chip_to_page_num_per_slave(i2ctools->chip))
+                    i2ctools->test_page = chip_to_page_num_per_slave(i2ctools->chip) - 1;
                 break;
             default:
                 break;
@@ -298,11 +314,12 @@ int32_t i2ctools_app(void* p) {
         } else if(event.key == InputKeyLeft && event.type == InputTypeRelease) {
             switch(i2ctools->main_view->current_view)
             {
-            case READ_VIEW:
-                if(i2ctools->read->addr) {
-                    i2ctools->read->addr -= i2ctools->page_size;
-                    i2ctools->read->readed = false;
-                }
+            case WRITE_VIEW:
+                i2ctools->pattern--;
+                break;
+            case SETTINGS_VIEW:
+                if(i2ctools->test_page)
+                    i2ctools->test_page--;
                 break;
             default:
                 break;
@@ -326,14 +343,13 @@ int32_t i2ctools_app(void* p) {
 
     gui_remove_view_port(gui, i2ctools->view_port);
     view_port_free(i2ctools->view_port);
-    furi_record_close(RECORD_NOTIFICATION);
     furi_message_queue_free(event_queue);
-    i2c_sniffer_free(i2ctools->sniffer);
-    i2c_scanner_free(i2ctools->scanner);
     i2c_read_free(i2ctools->read);
+    i2c_write_free(i2ctools->write);
     i2c_sender_free(i2ctools->sender);
     i2c_main_view_free(i2ctools->main_view);
     free(i2ctools);
+    furi_record_close(RECORD_NOTIFICATION);
     furi_record_close(RECORD_GUI);
     return 0;
 }

@@ -6,4 +6,4 @@
 
 #define SEND_TEXT "SEND"
 
-void draw_sender_view(Canvas* canvas, i2cSender* i2c_sender);
+void draw_sender_view(Canvas* canvas/*, i2cSender* i2c_sender*/);

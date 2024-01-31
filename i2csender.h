@@ -12,7 +12,7 @@ typedef struct {
     bool sended;
     bool error;
 
-    i2cScanner* scanner;
+//    i2cScanner* scanner;
 } i2cSender;
 
 void i2c_send();

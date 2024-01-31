@@ -5,38 +5,51 @@
 void i2c_read(i2cRead* i2c_read) {
     furi_hal_i2c_acquire(I2C_BUS);
 
-    if(!i2c_read->scanner->scanned) {
-        scan_i2c_bus(i2c_read->scanner);
-        i2c_read->address_num = i2c_read->scanner->nb_found;
-    }
+    if(!i2ctools->scanned)
+        scan_i2c_bus();
 
-    if(!i2c_read->address_num) {
+    if(!i2ctools->address_num) {
         i2c_read->readed = false;
-        i2c_read->len = 0;
+        i2ctools->rx_len = 0;
         return;
     }
 
-    uint8_t i2c_addr = i2c_read->scanner->addresses[i2c_read->address_idx] << 1;
+    chip_model chip = i2ctools->chip;
+    uint8_t i2c_addr_8bit = i2ctools->addresses[i2ctools->address_idx] << 1;
+    uint8_t int_addr_len = chip_to_addr_size(chip);
+    uint16_t page_size = chip_to_page_size(chip);
+    uint16_t int_addr_start = i2ctools->test_page * page_size;
+
     uint8_t tx_buff[2];
-    tx_buff[0] = i2c_read->addr >> 8;
-    tx_buff[1] = i2c_read->addr & 0xFF;
+    if(int_addr_len == 2){
+        tx_buff[0] = int_addr_start >> 8;
+        tx_buff[1] = int_addr_start & 0xFF;
+    }
+    else {
+        tx_buff[0] = int_addr_start & 0xFF;
+    }
+
+    FURI_CRITICAL_ENTER();
 
     bool ok = furi_hal_i2c_trx(
         I2C_BUS,
-        i2c_addr,
+        i2c_addr_8bit,
         tx_buff,
-        2,
-        i2c_read->recv,
-        i2c_read->len,
+        int_addr_len,
+        i2ctools->rx_buff,
+        page_size,
         I2C_TIMEOUT);
+
+    FURI_CRITICAL_EXIT();
 
     if(ok) {
         i2c_read->readed = true;
+        i2ctools->rx_len = page_size;
         notification_message(i2ctools->notification, &sequence_blink_yellow_100);
     }
     else {
         i2c_read->readed = false;
-        i2c_read->len = 0;
+        i2ctools->rx_len = 0;
         notification_message(i2ctools->notification, &sequence_blink_red_100);
     }
 
@@ -45,8 +58,6 @@ void i2c_read(i2cRead* i2c_read) {
 
 i2cRead* i2c_read_alloc() {
     i2cRead* i2c_read = malloc(sizeof(i2cRead));
-    i2c_read->address_idx = 0;
-    i2c_read->address_num = 0;
     i2c_read->readed = false;
     return i2c_read;
 }

@@ -1,10 +1,10 @@
 #include "sender_view.h"
 
-void draw_sender_view(Canvas* canvas, i2cSender* i2c_sender) {
+void draw_sender_view(Canvas* canvas/*, i2cSender* i2c_sender*/) {
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
     canvas_draw_rframe(canvas, 0, 0, 128, 64, 3);
-
+/*
     if(!i2c_sender->scanner->scanned) {
         scan_i2c_bus(i2c_sender->scanner);
     }
@@ -67,4 +67,5 @@ void draw_sender_view(Canvas* canvas, i2cSender* i2c_sender) {
             }
         }
     }
+*/
 }
