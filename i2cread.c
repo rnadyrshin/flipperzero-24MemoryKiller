@@ -45,12 +45,10 @@ void i2c_read(i2cRead* i2c_read) {
     if(ok) {
         i2c_read->readed = true;
         i2ctools->rx_len = page_size;
-        notification_message(i2ctools->notification, &sequence_blink_yellow_100);
     }
     else {
         i2c_read->readed = false;
         i2ctools->rx_len = 0;
-        notification_message(i2ctools->notification, &sequence_blink_red_100);
     }
 
     furi_hal_i2c_release(I2C_BUS);

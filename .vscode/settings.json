@@ -19,6 +19,8 @@
         "unordered_map": "c",
         "charconv": "c",
         "type_traits": "c",
-        "variant": "c"
+        "variant": "c",
+        "__locale": "c",
+        "locale": "c"
     }
 }

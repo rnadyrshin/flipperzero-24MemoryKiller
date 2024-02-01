@@ -32,12 +32,16 @@ void i2c_write(i2cWrite* i2c_write) {
 
     FURI_CRITICAL_ENTER();
 
+    uint32_t time_1write_send_start = get_time_us();
+
     bool ok = furi_hal_i2c_tx(
         I2C_BUS,
         i2c_addr_8bit,
         buff,
         page_size + int_addr_len,
         I2C_TIMEOUT);
+
+    uint32_t time_1write_write_start = get_time_us();
 
     if(ok) {
         uint16_t try_cnt = 500;
@@ -47,17 +51,22 @@ void i2c_write(i2cWrite* i2c_write) {
         }
     }
 
+    uint32_t time_1write_write_end = get_time_us();
+    
+    if(time_1write_write_end > time_1write_write_start)
+        i2ctools->last_1write_write_time_us = time_1write_write_end - time_1write_write_start;
+    if(time_1write_write_end > time_1write_send_start)
+        i2ctools->last_1write_full_time_us = time_1write_write_end - time_1write_send_start;
+
     FURI_CRITICAL_EXIT();
 
     if(ok) {
         i2c_write->written = true;
         i2ctools->tx_len = page_size;
-        //notification_message(i2ctools->notification, &sequence_blink_cyan_100);
     }
     else {
         i2c_write->written = false;
         i2ctools->tx_len = 0;
-        //notification_message(i2ctools->notification, &sequence_blink_red_100);
     }
 
     furi_hal_i2c_release(I2C_BUS);

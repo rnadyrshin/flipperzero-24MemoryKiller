@@ -43,6 +43,11 @@ void i2c_bus_handle_event(FuriHalI2cBusHandle* handle, FuriHalI2cBusHandleEvent 
     }
 }
 
+uint32_t get_time_us() {
+    uint32_t ticks = DWT->CYCCNT;
+    return ticks / furi_hal_cortex_instructions_per_microsecond();
+}
+
 void i2ctools_draw_callback(Canvas* canvas, void* ctx) {
     i2ctools = ctx;
     if(furi_mutex_acquire(i2ctools->mutex, 200) != FuriStatusOk) {
@@ -60,10 +65,10 @@ void i2ctools_draw_callback(Canvas* canvas, void* ctx) {
         draw_read_view(canvas, i2ctools->read);
         break;
     case WRITE_VIEW:
-        draw_write_view(canvas, i2ctools->write);
+        draw_write_view(canvas);
         break;
     case KILL_VIEW:
-        //draw_kill_view(canvas, i2ctools->sniffer);
+        draw_kill_view(canvas, i2ctools->kill);
         break;
     case SETTINGS_VIEW:
         draw_settings_view(canvas);
@@ -80,19 +85,49 @@ void i2ctools_input_callback(InputEvent* input_event, void* ctx) {
     furi_message_queue_put(event_queue, input_event, FuriWaitForever);
 }
 
+void fill_tx_buff_by_pattern() {
+    uint16_t page_size = chip_to_page_size(i2ctools->chip);
+    i2ctools->tx_len = page_size;
+
+    // 24C00 (page_size == 1)
+    if(page_size == 1)
+        i2ctools->tx_buff[0] = i2ctools->pattern;
+    // All other chips
+    else {
+        for(uint16_t byte = 0; byte < page_size / 2; byte++) {
+            // Static part
+            i2ctools->tx_buff[byte] = byte;
+            // Dynamic part
+            i2ctools->tx_buff[(page_size / 2) + byte] = i2ctools->pattern + byte;
+        }
+    }
+}
+
+bool buffers_are_equal() {
+    if(i2ctools->tx_len != i2ctools->rx_len)
+        return false;
+    if(!i2ctools->tx_len)
+        return false;
+
+    for(uint16_t byte = 0; byte < i2ctools->tx_len; byte++) {
+        if(i2ctools->tx_buff[byte] != i2ctools->rx_buff[byte])
+            return false;
+    }
+
+    return true;
+}
+
 int32_t i2ctools_app(void* p) {
     UNUSED(p);
     FuriMessageQueue* event_queue = furi_message_queue_alloc(8, sizeof(InputEvent));
 
     // Alloc i2ctools
-    i2cTools* i2ctools = malloc(sizeof(i2cTools));
+    i2ctools = malloc(sizeof(i2cTools));
     memset(i2ctools, 0, sizeof(i2cTools));
 
     i2ctools->mutex = furi_mutex_alloc(FuriMutexTypeNormal);
     i2ctools->notification = furi_record_open(RECORD_NOTIFICATION);
-
     i2ctools->chip = chip_24c64;
-    i2ctools->page_size = 32;
     i2ctools->test_page = 1;
     i2ctools->address_num = 0;
     i2ctools->address_idx = 0;
@@ -113,8 +148,7 @@ int32_t i2ctools_app(void* p) {
     i2ctools->read = i2c_read_alloc();
     i2ctools->write = i2c_write_alloc();
 
-    //i2ctools->sender = i2c_sender_alloc();
-    //i2ctools->sender->scanner = i2ctools->scanner;
+    fill_tx_buff_by_pattern();
 
     while(furi_message_queue_get(event_queue, &event, FuriWaitForever) == FuriStatusOk) {
         // Back
@@ -142,52 +176,17 @@ int32_t i2ctools_app(void* p) {
                 i2ctools->chip = next_chip(i2ctools->chip);
                 if(i2ctools->test_page >= chip_to_page_num_per_slave(i2ctools->chip))
                     i2ctools->test_page = chip_to_page_num_per_slave(i2ctools->chip) - 1;
+                fill_tx_buff_by_pattern();
                 break;
             default:
                 break;
             }
-
-/*
-            else if(i2ctools->main_view->current_view == SCAN_VIEW) {
-                if(i2ctools->scanner->menu_index > 0) {
-                    i2ctools->scanner->menu_index--;
-                }
-            }
-            else if(i2ctools->main_view->current_view == SNIFF_VIEW) {
-                if(i2ctools->sniffer->row_index > 0) {
-                    i2ctools->sniffer->row_index--;
-                }
-            }
-            else if(i2ctools->main_view->current_view == SEND_VIEW) {
-                if(i2ctools->sender->value < 0xFF) {
-                    i2ctools->sender->value++;
-                    i2ctools->sender->sended = false;
-                }
-            }*/
         }
 
         // Long Up
         else if(
             event.key == InputKeyUp &&
             (event.type == InputTypeLong || event.type == InputTypeRepeat)) {
-/*
-            if(i2ctools->main_view->current_view == SCAN_VIEW) {
-                if(i2ctools->scanner->menu_index > 5) {
-                    i2ctools->scanner->menu_index -= 5;
-                }
-            }
-            else if(i2ctools->main_view->current_view == SEND_VIEW) {
-                if(i2ctools->sender->value < 0xF9) {
-                    i2ctools->sender->value += 5;
-                    i2ctools->sender->sended = false;
-                }
-            } else if(i2ctools->main_view->current_view == SNIFF_VIEW) {
-                if(i2ctools->sniffer->row_index > 5) {
-                    i2ctools->sniffer->row_index -= 5;
-                } else {
-                    i2ctools->sniffer->row_index = 0;
-                }
-            }*/
         }
 
         // Down
@@ -206,49 +205,17 @@ int32_t i2ctools_app(void* p) {
                 i2ctools->chip = prev_chip(i2ctools->chip);
                 if(i2ctools->test_page >= chip_to_page_num_per_slave(i2ctools->chip))
                     i2ctools->test_page = chip_to_page_num_per_slave(i2ctools->chip) - 1;
+                fill_tx_buff_by_pattern();
                 break;
             default:
                 break;
             }
-
-
-            /*else if(i2ctools->main_view->current_view == SCAN_VIEW) {
-                if(i2ctools->scanner->menu_index < ((int)i2ctools->scanner->nb_found / 3)) {
-                    i2ctools->scanner->menu_index++;
-                }
-            } else if(i2ctools->main_view->current_view == SNIFF_VIEW) {
-                if((i2ctools->sniffer->row_index + 3) <
-                   (int)i2ctools->sniffer->frames[i2ctools->sniffer->menu_index].data_index) {
-                    i2ctools->sniffer->row_index++;
-                }
-            } else if(i2ctools->main_view->current_view == SEND_VIEW) {
-                if(i2ctools->sender->value > 0x00) {
-                    i2ctools->sender->value--;
-                    i2ctools->sender->sended = false;
-                }
-            }*/
         }
 
         // Long Down
         else if(
             event.key == InputKeyDown &&
             (event.type == InputTypeLong || event.type == InputTypeRepeat)) {
-/*
-            if(i2ctools->main_view->current_view == SEND_VIEW) {
-                if(i2ctools->sender->value > 0x05) {
-                    i2ctools->sender->value -= 5;
-                    i2ctools->sender->sended = false;
-                } else {
-                    i2ctools->sender->value = 0;
-                    i2ctools->sender->sended = false;
-                }
-            } else if(i2ctools->main_view->current_view == SNIFF_VIEW) {
-                if((i2ctools->sniffer->row_index + 8) <
-                   (int)i2ctools->sniffer->frames[i2ctools->sniffer->menu_index].data_index) {
-                    i2ctools->sniffer->row_index += 5;
-                }
-            }
-*/
         // Ok
         } else if(event.key == InputKeyOk && event.type == InputTypeRelease) {
             switch(i2ctools->main_view->current_view)
@@ -258,37 +225,36 @@ int32_t i2ctools_app(void* p) {
                 break;
             case READ_VIEW:
                 i2c_read(i2ctools->read);
+                if(i2ctools->read->readed)
+                    notification_message(i2ctools->notification, &sequence_blink_yellow_100);
+                else
+                    notification_message(i2ctools->notification, &sequence_blink_red_100);
                 break;
             case WRITE_VIEW:
-                //for(uint16_t try_cnt = 0; try_cnt < 10000; try_cnt++) {
-                    i2c_write(i2ctools->write);
-                    i2ctools->pattern++;
-                //}
+                i2c_write(i2ctools->write);
+                if(i2ctools->write->written)
+                    notification_message(i2ctools->notification, &sequence_blink_cyan_100);
+                else
+                    notification_message(i2ctools->notification, &sequence_blink_red_100);
+
+                i2ctools->pattern++;
+                fill_tx_buff_by_pattern();
+                break;
+            case KILL_VIEW:
+                i2ctools->test_running = !i2ctools->test_running;
+
+                if(i2ctools->test_running)
+                    i2c_kill(i2ctools->kill);
                 break;
             default:
                 break;
             }
-
-/*
-            else if(i2ctools->main_view->current_view == SEND_VIEW) {
-                i2ctools->sender->must_send = true;
-            } else if(i2ctools->main_view->current_view == SNIFF_VIEW) {
-                if(i2ctools->sniffer->started) {
-                    stop_interrupts();
-                    i2ctools->sniffer->started = false;
-                    i2ctools->sniffer->state = I2C_BUS_FREE;
-                } else {
-                    start_interrupts(i2ctools->sniffer);
-                    i2ctools->sniffer->started = true;
-                    i2ctools->sniffer->state = I2C_BUS_FREE;
-                }
-            }
-*/
         } else if(event.key == InputKeyRight && event.type == InputTypeRelease) {
             switch(i2ctools->main_view->current_view)
             {
             case WRITE_VIEW:
                 i2ctools->pattern++;
+                fill_tx_buff_by_pattern();
                 break;
             case SETTINGS_VIEW:
                 i2ctools->test_page++;
@@ -298,24 +264,12 @@ int32_t i2ctools_app(void* p) {
             default:
                 break;
             }
-/*
-            if(i2ctools->main_view->current_view == SEND_VIEW) {
-                if(i2ctools->sender->address_idx < (i2ctools->scanner->nb_found - 1)) {
-                    i2ctools->sender->address_idx++;
-                    i2ctools->sender->sended = false;
-                }
-            } else if(i2ctools->main_view->current_view == SNIFF_VIEW) {
-                if(i2ctools->sniffer->menu_index < i2ctools->sniffer->frame_index) {
-                    i2ctools->sniffer->menu_index++;
-                    i2ctools->sniffer->row_index = 0;
-                }
-            }
-*/
         } else if(event.key == InputKeyLeft && event.type == InputTypeRelease) {
             switch(i2ctools->main_view->current_view)
             {
             case WRITE_VIEW:
                 i2ctools->pattern--;
+                fill_tx_buff_by_pattern();
                 break;
             case SETTINGS_VIEW:
                 if(i2ctools->test_page)
@@ -324,19 +278,6 @@ int32_t i2ctools_app(void* p) {
             default:
                 break;
             }
-/*
-            if(i2ctools->main_view->current_view == SEND_VIEW) {
-                if(i2ctools->sender->address_idx > 0) {
-                    i2ctools->sender->address_idx--;
-                    i2ctools->sender->sended = false;
-                }
-            } else if(i2ctools->main_view->current_view == SNIFF_VIEW) {
-                if(i2ctools->sniffer->menu_index > 0) {
-                    i2ctools->sniffer->menu_index--;
-                    i2ctools->sniffer->row_index = 0;
-                }
-            }
-*/
         }
         view_port_update(i2ctools->view_port);
     }
@@ -346,7 +287,6 @@ int32_t i2ctools_app(void* p) {
     furi_message_queue_free(event_queue);
     i2c_read_free(i2ctools->read);
     i2c_write_free(i2ctools->write);
-    i2c_sender_free(i2ctools->sender);
     i2c_main_view_free(i2ctools->main_view);
     free(i2ctools);
     furi_record_close(RECORD_NOTIFICATION);
