@@ -6,16 +6,14 @@ void i2c_kill() {
     uint32_t time_gr_writes_start = 0;
     uint32_t time_gr_writes_end = 0;
 
-    for(uint32_t i = 0; i < 1000; i++) {
+    while (i2ctools->test_running) {
+        fill_tx_buff_by_pattern();
         i2c_write(i2ctools->write);
-
-        //if((i2ctools->written % 10) == 0) {
-            i2c_read(i2ctools->read);
-            if (!buffers_are_equal())
-                break;
-            if (!i2ctools->write->written || !i2ctools->read->readed)
-                break;
-        //}
+        i2c_read(i2ctools->read);
+        if (!buffers_are_equal())
+            break;
+        if (!i2ctools->write->written || !i2ctools->read->readed)
+            break;
 
         if((i2ctools->written % 100) == 0) {
             if (i2ctools->written && time_gr_writes_start) {
@@ -35,10 +33,6 @@ void i2c_kill() {
 
         i2ctools->pattern++;
         i2ctools->written++;
-        fill_tx_buff_by_pattern();
-
-        if(!i2ctools->test_running)
-            break;
     }
 
     i2ctools->test_running = false;

@@ -14,11 +14,11 @@ void scan_i2c_bus() {
             i2ctools->address_num++;
         }
     }
-
+/*
     i2ctools->addresses[i2ctools->address_num] = 0x51;
     i2ctools->address_num++;
     i2ctools->addresses[i2ctools->address_num] = 0x52;
     i2ctools->address_num++;
-
+*/
     furi_hal_i2c_release(I2C_BUS);
 }

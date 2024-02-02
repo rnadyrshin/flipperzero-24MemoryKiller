@@ -1,5 +1,6 @@
 #include "i2ctools_i.h"
 
+#define I2C_CONFIG_I2C_100KHZ 0x10707DBC
 #define I2C_CONFIG_I2C_400KHZ 0x00602173
 
 i2cTools* i2ctools = 0;
@@ -68,7 +69,7 @@ void i2ctools_draw_callback(Canvas* canvas, void* ctx) {
         draw_write_view(canvas);
         break;
     case KILL_VIEW:
-        draw_kill_view(canvas, i2ctools->kill);
+        draw_kill_view(canvas);
         break;
     case SETTINGS_VIEW:
         draw_settings_view(canvas);
@@ -153,11 +154,18 @@ int32_t i2ctools_app(void* p) {
     while(furi_message_queue_get(event_queue, &event, FuriWaitForever) == FuriStatusOk) {
         // Back
         if(event.key == InputKeyBack && event.type == InputTypeRelease) {
-            if(i2ctools->main_view->current_view == MAIN_VIEW) {
+            switch(i2ctools->main_view->current_view) {
+            case KILL_VIEW:
+                i2ctools->test_running = false;
                 break;
-            } else {
-                i2ctools->main_view->current_view = MAIN_VIEW;
+            default:
+                break;
             }
+
+            if(i2ctools->main_view->current_view == MAIN_VIEW)
+                break;
+            else
+                i2ctools->main_view->current_view = MAIN_VIEW;
         }
 
         // Up
@@ -167,10 +175,6 @@ int32_t i2ctools_app(void* p) {
             case MAIN_VIEW:
                 if((i2ctools->main_view->menu_index > 0))
                     i2ctools->main_view->menu_index--;
-                break;
-            case READ_VIEW:
-//                if(i2ctools->address_idx + 1 < i2ctools->address_num)
-//                    i2ctools->address_idx++;
                 break;
             case SETTINGS_VIEW:
                 i2ctools->chip = next_chip(i2ctools->chip);
@@ -196,10 +200,6 @@ int32_t i2ctools_app(void* p) {
             case MAIN_VIEW:
                 if(i2ctools->main_view->menu_index < MENU_SIZE - 1)
                     i2ctools->main_view->menu_index++;
-                break;
-            case READ_VIEW:
-//                if(i2ctools->address_idx)
-//                    i2ctools->address_idx--;
                 break;
             case SETTINGS_VIEW:
                 i2ctools->chip = prev_chip(i2ctools->chip);

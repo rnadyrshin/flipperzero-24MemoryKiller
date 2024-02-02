@@ -1,7 +1,7 @@
 #include "../i2ctools_i.h"
 #include "kill_view.h"
 
-void draw_kill_view(Canvas* canvas, i2cKill* i2c_kill) {
+void draw_kill_view(Canvas* canvas) {
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
     canvas_draw_rframe(canvas, 0, 0, 128, 64, 3);
@@ -17,9 +17,6 @@ void draw_kill_view(Canvas* canvas, i2cKill* i2c_kill) {
 
     char addr_text[32];
 
-    if(i2c_kill)
-        i2c_kill = 0;
-
     snprintf(addr_text, sizeof(addr_text), "Written:  %lu", i2ctools->written);
     canvas_draw_str_aligned(canvas, 3, 3, AlignLeft, AlignTop, addr_text);
 
@@ -27,7 +24,7 @@ void draw_kill_view(Canvas* canvas, i2cKill* i2c_kill) {
         i2ctools->last_1write_full_time_us, i2ctools->last_1write_write_time_us);
     canvas_draw_str_aligned(canvas, 3, 13, AlignLeft, AlignTop, addr_text);
 
-    snprintf(addr_text, sizeof(addr_text), "Page per sec: %.2f", (double)i2ctools->last_gr_writes_per_sec);
+    snprintf(addr_text, sizeof(addr_text), "Pages per sec: %.2f", (double)i2ctools->last_gr_writes_per_sec);
     canvas_draw_str_aligned(canvas, 3, 23, AlignLeft, AlignTop, addr_text);
 
     // Start Button
