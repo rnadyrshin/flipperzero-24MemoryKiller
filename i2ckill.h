@@ -9,4 +9,5 @@ typedef struct {
     //uint8_t address_idx;
 } i2cKill;
 
-void i2c_kill();
+void i2c_test_start();
+void i2c_test_stop();

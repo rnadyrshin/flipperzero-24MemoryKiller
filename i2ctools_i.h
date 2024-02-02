@@ -34,6 +34,8 @@ typedef struct {
 
     bool scanned;
     bool test_running;
+    bool test_need_to_stop;
+    bool test_error;
     chip_model chip;
     uint8_t addresses[8];
     uint8_t address_num;
@@ -48,6 +50,7 @@ typedef struct {
     uint32_t last_1write_full_time_us;
     uint32_t last_1write_write_time_us;
     float last_gr_writes_per_sec;
+    FuriThread* scan_worker;
 } i2cTools;
 
 extern i2cTools* i2ctools;

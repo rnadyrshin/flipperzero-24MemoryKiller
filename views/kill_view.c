@@ -27,6 +27,11 @@ void draw_kill_view(Canvas* canvas) {
     snprintf(addr_text, sizeof(addr_text), "Pages per sec: %.2f", (double)i2ctools->last_gr_writes_per_sec);
     canvas_draw_str_aligned(canvas, 3, 23, AlignLeft, AlignTop, addr_text);
 
+    if(i2ctools->written && !i2ctools->test_running) {
+        snprintf(addr_text, sizeof(addr_text), "Last pattern:  %d", (uint8_t )(i2ctools->pattern - 1));
+        canvas_draw_str_aligned(canvas, 3, 33, AlignLeft, AlignTop, addr_text);
+    }
+
     // Start Button
     canvas_draw_rbox(canvas, 45, 48, 45, 13, 3);
     canvas_set_color(canvas, ColorWhite);

@@ -156,7 +156,8 @@ int32_t i2ctools_app(void* p) {
         if(event.key == InputKeyBack && event.type == InputTypeRelease) {
             switch(i2ctools->main_view->current_view) {
             case KILL_VIEW:
-                i2ctools->test_running = false;
+                i2c_test_stop();
+                notification_message(i2ctools->notification, &sequence_reset_rgb);
                 break;
             default:
                 break;
@@ -241,10 +242,10 @@ int32_t i2ctools_app(void* p) {
                 fill_tx_buff_by_pattern();
                 break;
             case KILL_VIEW:
-                i2ctools->test_running = !i2ctools->test_running;
-
                 if(i2ctools->test_running)
-                    i2c_kill(i2ctools->kill);
+                    i2c_test_stop();
+                else
+                    i2c_test_start();
                 break;
             default:
                 break;
