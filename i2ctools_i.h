@@ -18,7 +18,7 @@
 extern FuriHalI2cBusHandle i2c_handle;
 
 // I2C BUS
-#define I2C_TIMEOUT     3
+#define I2C_TIMEOUT     100
 #define I2C_BUS         &i2c_handle
 
 // App datas

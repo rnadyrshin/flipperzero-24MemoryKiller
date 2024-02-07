@@ -43,8 +43,10 @@ static int32_t test_worker(void* context) {
     }
 
     notification_message(cfg->notification, &sequence_blink_stop);
-    if(cfg->test_error)
+    if(cfg->test_error) {
+        notification_message(cfg->notification, &sequence_error);
         notification_message(cfg->notification, &sequence_set_only_red_255);
+    }
 
     cfg->test_running = false;
     return 0;
